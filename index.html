@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Chatbot with Syntax Highlighting</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"> <!-- Syntax highlighting theme -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            background-color: #0C0C0C;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background-color: #0C0C0C;
+            color: #0C0C0C;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            animation: fadeIn 1.5s ease-out;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #0C0C0C; /* Black background */
+            color: #fff; /* White text */
+            margin-bottom: 0;
+            animation: fadeIn 2s ease-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            animation: fadeInMessage 1s ease-out;
+        }
+
+        .user-message {
+            text-align: right;
+            color: #FFFFFF;
+        }
+
+        .bot-message {
+            text-align: left;
+            color: #FFFFFF; /* Soft orange for bot messages */
+        }
+
+        .bot-message pre {
+            background-color: #111;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            overflow: auto;
+            position: relative;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #434343;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+
+        .copy-button:hover {
+            background-color: #1c5a52;
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInMessage {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-input {
+            display: flex;
+            padding: 20px;
+            background-color: #0C0C0C;
+            border-top: 1px solid #0C0C0C;
+            border-radius: 0;
+            margin: 0;
+            box-shadow: none;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            padding: 15px;
+            font-size: 18px;
+            border: none;
+            outline: none;
+            resize: none;
+            color: #FFFFFF;
+            background-color: #0C0C0C;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input textarea:focus {
+            background-color: #444;
+            border-radius: 10px;
+        }
+
+        .chat-input button {
+            padding: 15px 20px;
+            font-size: 18px;
+            background-color: #0C0C0C;
+            border: none;
+            color: #fff;
+            border-radius: 8px;
+            margin-left: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .chat-input button:hover {
+            background-color: #2e7c7b;
+            transform: scale(1.05);
+        }
+
+        .chat-input button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">Custom Chatbot</div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input">
+            <textarea id="user-input" rows="1" placeholder="Type your message..."></textarea>
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <!-- Include Prism.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+
+        const API_URL = "https://api-inference.huggingface.co/codellama/CodeLlama-70b-hf";
+        const API_TOKEN = "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"; // Replace with your actual API token.
+
+        let history = [];
+
+        function addMessage(message, sender, isCode = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender === 'user' ? 'user-message' : 'bot-message');
+
+            if (isCode) {
+                // Render as code block
+                const pre = document.createElement('pre');
+                const code = document.createElement('code');
+                code.className = 'language-javascript'; // Adjust based on expected language (e.g., Python, JavaScript)
+                code.textContent = message;
+                pre.appendChild(code);
+
+                // Add copy button
+                const copyButton = document.createElement('button');
+                copyButton.classList.add('copy-button');
+                copyButton.textContent = 'Copy';
+                copyButton.onclick = () => copyToClipboard(code.textContent);
+                
+                pre.appendChild(copyButton);
+                messageDiv.appendChild(pre);
+
+                Prism.highlightElement(code); // Highlight code using Prism.js
+            } else {
+                // Render as plain text
+                messageDiv.textContent = message;
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to the bottom.
+        }
+
+        function copyToClipboard(text) {
+            // Remove the triple backticks (```) from the text
+            const cleanedText = text.replace(/```[\s\S]*?```/g, match => {
+                // Remove the backticks from each code block
+                return match.replace(/```/g, '').trim();
+            });
+
+            // Copy the cleaned text to the clipboard
+            navigator.clipboard.writeText(cleanedText).then(() => {
+                alert('Code copied to clipboard!');
+            }).catch(err => {
+                console.error('Error copying text: ', err);
+            });
+        }
+
+        function cleanCodeText(text) {
+            // Remove any ``` that might be around the code block.
+            return text.replace(/```[\s\S]*?```/g, match => {
+                return match.replace(/```/g, '').trim();
+            });
+        }
+
+        // Adjust the bot response handler for code blocks
+        async function sendMessage(message) {
+            // Clear the input box after message is sent
+            addMessage(message, 'user');
+            userInput.value = "";
+
+            // Reset history if message context changes
+            const prompt = `<s>[INST] ${message} [/INST]`;
+
+            // Indicate thinking while the bot generates the response
+            addMessage("Thinking...", 'bot');
+
+            try {
+                // Fetch response from the API
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${API_TOKEN}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        inputs: prompt,
+                        parameters: {
+                            max_new_tokens: 256,
+                            temperature: 0.7,
+                            top_p: 0.9,
+                            repetition_penalty: 1.0
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const botResponse = data[0]?.generated_text || "No response generated.";
+
+                    // Remove the "Thinking..." message
+                    chatMessages.lastChild.remove();
+
+                    // Check if the bot's response contains a code block (e.g., ```lua or other language)
+                    if (botResponse.includes("```")) {
+                        // Split code and response text
+                        const codeBlock = botResponse.match(/```[\s\S]*?```/);
+                        const nonCodeResponse = botResponse.replace(codeBlock, '').trim();
+                        const formattedCode = codeBlock ? codeBlock[0].replace(/```lua/g, '```').trim() : '';
+
+                        // Add non-code response text if it exists
+                        if (nonCodeResponse) {
+                            addMessage(nonCodeResponse, 'bot');
+                        }
+
+                        // Add code block with copy button
+                        if (formattedCode) {
+                            addMessage(formattedCode, 'bot', true);
+                        }
+                    } else {
+                        addMessage(botResponse, 'bot');
+                    }
+                } else {
+                    addMessage("Sorry, I couldn't process your request.", 'bot');
+                }
+            } catch (error) {
+                console.error('Error: ', error);
+                addMessage("Sorry, I couldn't process your request.", 'bot');
+            }
+        }
+
+        sendButton.addEventListener("click", () => {
+            const message = userInput.value.trim();
+            if (message) {
+                sendMessage(message);
+            }
+        });
+
+        userInput.addEventListener("keydown", (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+    </script>
+</body>
+</html>
